@@ -1,0 +1,35 @@
+# Metal Mantra reusable workflow. Publish this file, unchanged, as .github/workflows/scan.yml in a PUBLIC repository,
+# tag it v1, then set TRUSTED_WORKFLOW_REPOSITORY in lib/scanner/attestation-setup.ts to that `owner/repo`.
+#
+# Why it exists: when a repository owner calls this workflow, GitHub signs the identity token with `job_workflow_ref`
+# pointing here. Metal Mantra can then tell that the steps below ran, not steps the owner wrote, so the scanner and the
+# checkout were not theirs to alter. The workflow takes no path input on purpose: it always scans the repository root.
+name: Metal Mantra scan
+on:
+  workflow_call:
+    inputs:
+      registration:
+        description: Registration id from https://metalmantra.io/scan/private
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Scan and report (source never leaves this runner)
+        env:
+          REGISTRATION: ${{ inputs.registration }}
+        run: |
+          curl -fsSL https://metalmantra.io/attest/scan.mjs -o "$RUNNER_TEMP/metalmantra-scan.mjs"
+          node "$RUNNER_TEMP/metalmantra-scan.mjs" --registration "$REGISTRATION" --dir "$GITHUB_WORKSPACE"
